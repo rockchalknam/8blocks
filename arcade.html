@@ -215,7 +215,18 @@ document.getElementById("ttl").textContent = PAGE_TITLE;
 document.getElementById("sub").innerHTML   = PAGE_SUBTITLE;
 
 let ALL_GAMES = [];
-let VIEW = "ALL";
+/* The selected tab lives in the URL hash, so it survives a page reload and a
+   single period can be linked directly (…/arcade.html#period-3). */
+function slugify(v) { return v.toLowerCase().replace(/[^a-z0-9]+/g, "-"); }
+
+function viewFromHash() {
+  const h = (location.hash || "").replace(/^#/, "");
+  if (!h) return "ALL";
+  const match = ["ALL"].concat(PERIODS).find(n => slugify(n) === h);
+  return match || "ALL";
+}
+
+let VIEW = viewFromHash();
 
 /* Google's published CSV is eventually consistent — a given fetch can come back
    a snapshot or two behind. We merge every fetch into a running session map so
@@ -280,7 +291,13 @@ function renderTabs() {
   ).join("");
 
   document.querySelectorAll(".tab").forEach(b => {
-    b.onclick = () => { VIEW = b.dataset.v; renderTabs(); renderBody(); };
+    b.onclick = () => {
+      VIEW = b.dataset.v;
+      // replaceState keeps the back button from filling up with tab clicks
+      history.replaceState(null, "", "#" + slugify(VIEW));
+      renderTabs();
+      renderBody();
+    };
   });
 }
 
@@ -345,10 +362,15 @@ function ingest(rows) {
     return false;
   }
 
-  // Students type "alex" as often as "Alex". This page goes home to families.
+  // Students type "alex" as often as "Alex", and some type "ROLAND".
+  // This page goes home to families, so even it out.
   function tidy(s) {
     s = s.trim().replace(/\s+/g, " ");
-    return s.replace(/(^|[\s'-])([a-z])/g, (m, p, c) => p + c.toUpperCase());
+    return s.split(" ").map(w => {
+      // A word in full caps gets lowered first, so ROLAND becomes Roland.
+      if (w.length > 1 && w === w.toUpperCase() && /[A-Z]/.test(w)) w = w.toLowerCase();
+      return w.replace(/(^|['-])([a-z])/g, (m, p, c) => p + c.toUpperCase());
+    }).join(" ");
   }
 
   function buildName(row) {
@@ -363,29 +385,31 @@ function ingest(rows) {
   }
 
   // Walk backwards so the newest submission per student wins within this snapshot.
-  const seen = new Set();
-  for (let r = rows.length - 1; r >= 1; r--) {
+  /* Keyed on student + link, not student alone. A kid who builds a second game
+     gets a second tile; a kid who submits the same link twice gets one. */
+  for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
     const link = (row[iLink] || "").trim();
     if (!/^https?:\/\//i.test(link)) continue;
 
     const who = buildName(row);
     const period = iPeriod > -1 ? normalizePeriod(row[iPeriod]) : null;
-    const key = (period || "?") + "|" + who.toLowerCase();
-    if (who && seen.has(key)) continue;
-    if (who) seen.add(key);
+    const linkKey = link.toLowerCase().replace(/[?#].*$/, "").replace(/\/+$/, "");
+    const key = (period || "?") + "|" + who.toLowerCase() + "|" + linkKey;
 
-    SESSION.set(who ? key : key + "|" + link, {
+    SESSION.set(key, {
       who: who || "Anonymous",
       title: (iTitle > -1 ? (row[iTitle] || "").trim() : "") || "Untitled Game",
       link: link,
-      period: period
+      period: period,
+      order: r
     });
   }
 
-  // Alphabetical inside each period, so it reads like a roster.
-  ALL_GAMES = [...SESSION.values()]
-    .sort((a, b) => a.who.localeCompare(b.who, undefined, { sensitivity: "base" }));
+  // Alphabetical by student; a student's own games stay in submission order.
+  ALL_GAMES = [...SESSION.values()].sort((a, b) =>
+    a.who.localeCompare(b.who, undefined, { sensitivity: "base" }) || a.order - b.order
+  );
 
   return true;
 }
@@ -405,6 +429,12 @@ async function load() {
     show('<div class="msg"><b>Could not load the sheet</b>Check that the Sheet is published to the web as CSV and the link is pasted correctly.</div>');
   }
 }
+
+window.addEventListener("hashchange", () => {
+  VIEW = viewFromHash();
+  renderTabs();
+  renderBody();
+});
 
 renderTabs();
 load();
