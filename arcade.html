@@ -191,6 +191,12 @@ document.getElementById("sub").innerHTML   = PAGE_SUBTITLE;
 let ALL_GAMES = [];
 let VIEW = "ALL";
 
+/* Google's published CSV is eventually consistent — a given fetch can come back
+   a snapshot or two behind. We merge every fetch into a running session map so
+   rows can only ever be added or updated, never dropped by a stale snapshot.
+   Reloading the page clears this and rebuilds from whatever the sheet has. */
+const SESSION = new Map();
+
 /* ---------- CSV parsing (handles quotes and commas inside cells) ---------- */
 function parseCSV(text) {
   const rows = [];
@@ -330,9 +336,8 @@ function ingest(rows) {
     return iName > -1 ? tidy(row[iName] || "") : "";
   }
 
-  // Walk backwards so the newest submission per student wins.
+  // Walk backwards so the newest submission per student wins within this snapshot.
   const seen = new Set();
-  const out = [];
   for (let r = rows.length - 1; r >= 1; r--) {
     const row = rows[r];
     const link = (row[iLink] || "").trim();
@@ -344,7 +349,7 @@ function ingest(rows) {
     if (who && seen.has(key)) continue;
     if (who) seen.add(key);
 
-    out.push({
+    SESSION.set(who ? key : key + "|" + link, {
       who: who || "Anonymous",
       title: (iTitle > -1 ? (row[iTitle] || "").trim() : "") || "Untitled Game",
       link: link,
@@ -353,9 +358,9 @@ function ingest(rows) {
   }
 
   // Alphabetical inside each period, so it reads like a roster.
-  out.sort((a, b) => a.who.localeCompare(b.who, undefined, { sensitivity: "base" }));
+  ALL_GAMES = [...SESSION.values()]
+    .sort((a, b) => a.who.localeCompare(b.who, undefined, { sensitivity: "base" }));
 
-  ALL_GAMES = out;
   return true;
 }
 
@@ -368,7 +373,7 @@ async function load() {
     const res = await fetch(SHEET_CSV_URL + (SHEET_CSV_URL.includes("?") ? "&" : "?") + "t=" + Date.now());
     if (!res.ok) throw new Error(res.status);
     const rows = parseCSV(await res.text());
-    if (rows.length < 2) { ALL_GAMES = []; renderBody(); return; }
+    if (rows.length < 2) { renderBody(); return; }
     if (ingest(rows)) renderBody();
   } catch (e) {
     show('<div class="msg"><b>Could not load the sheet</b>Check that the Sheet is published to the web as CSV and the link is pasted correctly.</div>');
