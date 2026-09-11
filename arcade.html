@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Class Arcade | 8-Block Challenge</title>
+
+<script>
+/* ==========================================================================
+   EDIT THESE THREE THINGS. Nothing else in this file needs touching.
+   ========================================================================== */
+
+// 1. Your published Google Sheet CSV link (see SETUP-GUIDE, Part 3)
+const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQw1zYGZM-9WxASKiJw9j7CrQeJlFw1Ltk2dX4F70U_ZhZi1ifrVf3HlE2sqGkXzcqMhDmVoYcX90En/pub?gid=1728513569&single=true&output=csv";
+
+// 2. Your periods, in the order you want them shown.
+//    These should match the choices in your form's Class Period question.
+const PERIODS = ["Period 1", "Period 2", "Period 3", "Period 4"];
+
+// 3. How names show on the page.
+//    "initial" = Alex M.   (recommended, this page goes home to families)
+//    "full"    = Alex Martinez
+const NAME_STYLE = "initial";
+
+// 4. Header text
+const PAGE_TITLE    = "THE CLASS ARCADE";
+const PAGE_SUBTITLE = "8-Block Challenge &middot; Bloxels &middot; Click a name to play that game";
+</script>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #141414;
+    color: #fff;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    padding: 26px 20px 60px;
+    min-height: 100vh;
+  }
+
+  .wrap { max-width: 1000px; margin: 0 auto; }
+
+  .pixelrow { display: flex; gap: 4px; margin-bottom: 14px; }
+  .pixelrow i { width: 13px; height: 13px; display: block; }
+
+  h1 {
+    font-family: "Courier New", monospace;
+    font-size: clamp(28px, 5.5vw, 46px);
+    letter-spacing: 1px;
+    margin-bottom: 7px;
+  }
+
+  .sub { color: #9a9a9a; font-size: 14px; margin-bottom: 20px; }
+
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px; }
+
+  .tab {
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    background: #1e1e1e;
+    color: #9a9a9a;
+    border: 1px solid #2d2d2d;
+    border-radius: 6px;
+    padding: 9px 16px;
+    cursor: pointer;
+    transition: all .12s ease;
+  }
+  .tab:hover { color: #fff; border-color: #4a4a4a; }
+  .tab.on { background: #4CAF50; color: #141414; border-color: #4CAF50; }
+
+  .section { margin-bottom: 34px; }
+
+  .shead {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    border-bottom: 1px solid #2d2d2d;
+    padding-bottom: 9px;
+    margin-bottom: 4px;
+  }
+  .shead h2 {
+    font-family: "Courier New", monospace;
+    font-size: 21px;
+    letter-spacing: 1px;
+  }
+  .shead .n {
+    font-family: "Courier New", monospace;
+    font-size: 12px;
+    color: #4CAF50;
+    letter-spacing: 1px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 12px 12px 12px 10px;
+    border-bottom: 1px solid #222;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 5px;
+    transition: background .1s ease;
+  }
+  .row:hover { background: #1e1e1e; }
+  .row:hover .arrow { color: #4CAF50; }
+  .row:hover .title { color: #4CAF50; }
+
+  .chip { width: 15px; height: 15px; border-radius: 3px; flex: 0 0 auto; }
+
+  .who { font-weight: 600; font-size: 15.5px; flex: 0 0 auto; }
+
+  .dash { color: #5a5a5a; flex: 0 0 auto; }
+
+  .title {
+    font-size: 15.5px;
+    color: #c9c9c9;
+    flex: 1 1 auto;
+    word-break: break-word;
+    transition: color .1s ease;
+  }
+
+  .arrow {
+    font-family: "Courier New", monospace;
+    font-size: 12px;
+    color: #5a5a5a;
+    letter-spacing: 1px;
+    flex: 0 0 auto;
+    transition: color .1s ease;
+  }
+
+  .empty {
+    color: #5a5a5a;
+    font-size: 14px;
+    padding: 16px 10px;
+    font-style: italic;
+  }
+
+  .msg {
+    background: #1e1e1e;
+    border: 1px solid #2d2d2d;
+    border-radius: 8px;
+    padding: 32px 24px;
+    text-align: center;
+    color: #9a9a9a;
+  }
+  .msg b { color: #fff; display: block; margin-bottom: 8px; font-size: 17px; }
+
+  footer {
+    margin-top: 34px;
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    color: #4a4a4a;
+    letter-spacing: 1px;
+  }
+
+  @media print {
+    body { background: #fff; color: #000; }
+    .tabs, footer { display: none; }
+    .row { border-bottom: 1px solid #ccc; }
+    .title { color: #333; }
+    h1, .shead h2 { color: #000; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="pixelrow">
+    <i style="background:#4CAF50"></i><i style="background:#E53935"></i>
+    <i style="background:#FDD835"></i><i style="background:#A55EEA"></i>
+    <i style="background:#29B6F6"></i><i style="background:#FB8C00"></i>
+    <i style="background:#EC407A"></i><i style="background:#FFFFFF"></i>
+  </div>
+
+  <h1 id="ttl">THE CLASS ARCADE</h1>
+  <p class="sub" id="sub"></p>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="out"><div class="msg"><b>Loading</b>Pulling in the latest games.</div></div>
+
+  <footer>UPDATES AUTOMATICALLY EVERY 30 SECONDS</footer>
+</div>
+
+<script>
+const COLORS = ["#4CAF50","#E53935","#FDD835","#A55EEA","#29B6F6","#FB8C00","#EC407A","#FFFFFF"];
+
+document.getElementById("ttl").textContent = PAGE_TITLE;
+document.getElementById("sub").innerHTML   = PAGE_SUBTITLE;
+
+let ALL_GAMES = [];
+let VIEW = "ALL";
+
+/* ---------- CSV parsing (handles quotes and commas inside cells) ---------- */
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cell = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"' && text[i+1] === '"') { cell += '"'; i++; }
+      else if (c === '"') { inQ = false; }
+      else { cell += c; }
+    } else {
+      if (c === '"') { inQ = true; }
+      else if (c === ",") { row.push(cell); cell = ""; }
+      else if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+      else if (c !== "\r") { cell += c; }
+    }
+  }
+  if (cell.length || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim() !== ""));
+}
+
+function findCol(headers, words) {
+  for (let i = 0; i < headers.length; i++) {
+    const h = headers[i].toLowerCase();
+    if (words.some(w => h.includes(w))) return i;
+  }
+  return -1;
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+}
+
+function show(html) { document.getElementById("out").innerHTML = html; }
+
+/* ---------- match a student's answer to one of your PERIODS ---------- */
+function normalizePeriod(raw) {
+  const v = (raw || "").trim();
+  if (!v) return null;
+  const digits = v.match(/\d+/);
+  for (const p of PERIODS) {
+    if (p.toLowerCase() === v.toLowerCase()) return p;
+    const pd = p.match(/\d+/);
+    if (digits && pd && digits[0] === pd[0]) return p;
+  }
+  return null;
+}
+
+function renderTabs() {
+  const names = ["ALL"].concat(PERIODS);
+  document.getElementById("tabs").innerHTML = names.map(n =>
+    '<button class="tab' + (VIEW === n ? ' on' : '') + '" data-v="' + esc(n) + '">' +
+      esc(n.toUpperCase()) +
+    '</button>'
+  ).join("");
+
+  document.querySelectorAll(".tab").forEach(b => {
+    b.onclick = () => { VIEW = b.dataset.v; renderTabs(); renderBody(); };
+  });
+}
+
+function sectionHTML(period, games, colorOffset) {
+  let rows;
+  if (!games.length) {
+    rows = '<div class="empty">No games submitted yet.</div>';
+  } else {
+    rows = games.map((g, i) =>
+      '<a class="row" href="' + g.link.replace(/"/g, "&quot;") + '" target="_blank" rel="noopener">' +
+        '<span class="chip" style="background:' + COLORS[(i + colorOffset) % COLORS.length] + '"></span>' +
+        '<span class="who">' + esc(g.who) + '</span>' +
+        '<span class="dash">&ndash;</span>' +
+        '<span class="title">' + esc(g.title) + '</span>' +
+        '<span class="arrow">&#9654; PLAY</span>' +
+      '</a>'
+    ).join("");
+  }
+
+  return '<div class="section">' +
+    '<div class="shead">' +
+      '<h2>' + esc(period.toUpperCase()) + '</h2>' +
+      '<span class="n">' + games.length + (games.length === 1 ? ' GAME' : ' GAMES') + '</span>' +
+    '</div>' + rows +
+  '</div>';
+}
+
+function renderBody() {
+  if (!ALL_GAMES.length) {
+    show('<div class="msg"><b>No games yet</b>The first link submitted shows up right here.</div>');
+    return;
+  }
+
+  const periods = VIEW === "ALL" ? PERIODS : [VIEW];
+  let offset = 0;
+  const html = periods.map(p => {
+    const g = ALL_GAMES.filter(x => x.period === p);
+    const s = sectionHTML(p, g, offset);
+    offset += g.length;
+    return s;
+  }).join("");
+
+  const unassigned = ALL_GAMES.filter(x => !x.period);
+  const extra = (VIEW === "ALL" && unassigned.length)
+    ? sectionHTML("Unsorted", unassigned, offset)
+    : "";
+
+  show(html + extra);
+}
+
+function ingest(rows) {
+  const headers = rows[0];
+  const iPeriod = findCol(headers, ["period"]);
+  const iFirst  = findCol(headers, ["first name"]);
+  const iLast   = findCol(headers, ["last name"]);
+  const iName   = iFirst === -1 ? findCol(headers, ["name"]) : -1;
+  const iTitle  = findCol(headers, ["title"]);
+  const iLink   = findCol(headers, ["link", "url"]);
+
+  if (iLink === -1) {
+    show('<div class="msg"><b>No link column found</b>One of your form questions needs the word "link" in it.</div>');
+    return false;
+  }
+
+  // Students type "alex" as often as "Alex". This page goes home to families.
+  function tidy(s) {
+    s = s.trim().replace(/\s+/g, " ");
+    return s.replace(/(^|[\s'-])([a-z])/g, (m, p, c) => p + c.toUpperCase());
+  }
+
+  function buildName(row) {
+    if (iFirst > -1) {
+      const f = tidy(row[iFirst] || "");
+      const l = tidy(iLast > -1 ? (row[iLast] || "") : "");
+      if (!f) return l;
+      if (!l) return f;
+      return NAME_STYLE === "full" ? f + " " + l : f + " " + l.charAt(0) + ".";
+    }
+    return iName > -1 ? tidy(row[iName] || "") : "";
+  }
+
+  // Walk backwards so the newest submission per student wins.
+  const seen = new Set();
+  const out = [];
+  for (let r = rows.length - 1; r >= 1; r--) {
+    const row = rows[r];
+    const link = (row[iLink] || "").trim();
+    if (!/^https?:\/\//i.test(link)) continue;
+
+    const who = buildName(row);
+    const period = iPeriod > -1 ? normalizePeriod(row[iPeriod]) : null;
+    const key = (period || "?") + "|" + who.toLowerCase();
+    if (who && seen.has(key)) continue;
+    if (who) seen.add(key);
+
+    out.push({
+      who: who || "Anonymous",
+      title: (iTitle > -1 ? (row[iTitle] || "").trim() : "") || "Untitled Game",
+      link: link,
+      period: period
+    });
+  }
+
+  // Alphabetical inside each period, so it reads like a roster.
+  out.sort((a, b) => a.who.localeCompare(b.who, undefined, { sensitivity: "base" }));
+
+  ALL_GAMES = out;
+  return true;
+}
+
+async function load() {
+  if (!SHEET_CSV_URL || SHEET_CSV_URL.indexOf("PASTE_YOUR") === 0) {
+    show('<div class="msg"><b>Not connected yet</b>Open this file and paste your published Sheet CSV link into SHEET_CSV_URL near the top.</div>');
+    return;
+  }
+  try {
+    const res = await fetch(SHEET_CSV_URL + (SHEET_CSV_URL.includes("?") ? "&" : "?") + "t=" + Date.now());
+    if (!res.ok) throw new Error(res.status);
+    const rows = parseCSV(await res.text());
+    if (rows.length < 2) { ALL_GAMES = []; renderBody(); return; }
+    if (ingest(rows)) renderBody();
+  } catch (e) {
+    show('<div class="msg"><b>Could not load the sheet</b>Check that the Sheet is published to the web as CSV and the link is pasted correctly.</div>');
+  }
+}
+
+renderTabs();
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>
